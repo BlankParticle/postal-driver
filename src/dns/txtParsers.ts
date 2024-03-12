@@ -33,9 +33,9 @@ export const parseDkim = (data: string) => {
 };
 
 export const buildDkimRecord = (data: Record<string, string>) =>
-  `v=DKIM1;${Object.entries(data)
+  `v=DKIM1; ${Object.entries(data)
     .map(([key, value]) => `${key}=${value}`)
-    .join(";")}`;
+    .join("; ")};`;
 
 export const parseDmarc = (data: string) => {
   const dmarc = data.replaceAll(" ", "").match(/v=DMARC1;(.*)/);
@@ -49,6 +49,6 @@ export const parseDmarc = (data: string) => {
 };
 
 export const buildDmarcRecord = (data: Record<string, string>) =>
-  `v=DMARC1;${Object.entries(data)
+  `v=DMARC1; ${Object.entries(data)
     .map(([key, value]) => `${key}=${value}`)
-    .join(";")}`;
+    .join("; ")};`;
