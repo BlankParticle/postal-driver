@@ -1,0 +1,25 @@
+{
+  "name": "postal-driver",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "",
+  "main": "index.js",
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.11.25",
+    "dotenv-cli": "^7.4.1",
+    "tsx": "^4.7.1",
+    "typescript": "^5.4.2"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "drizzle-kit": "^0.20.14",
+    "drizzle-orm": "^0.30.1",
+    "mysql2": "^3.9.2",
+    "nanoid": "^5.0.6",
+    "zod": "^3.22.4"
+  }
+}
