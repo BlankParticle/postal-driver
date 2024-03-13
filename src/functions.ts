@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { connection as rawMySqlConnection, db } from "./db";
 import {
   organizations,
   domains,
@@ -24,6 +24,8 @@ import {
   parseDkim,
   parseSpfIncludes,
 } from "./dns/txtParsers";
+import { fileURLToPath } from "node:url";
+import { readFile } from "node:fs/promises";
 
 export type CreateOrgInput = {
   orgId: number;
@@ -444,4 +446,53 @@ export async function setMailServerRouteForDomain(
     mode: "Endpoint",
     uuid,
   });
+}
+
+export type AddMailServerInput = {
+  orgId: number;
+  serverPublicId: string;
+  defaultIpPoolId: number;
+};
+
+// This function takes time to complete, so use it with caution
+export async function addMailServer(input: AddMailServerInput) {
+  const uuid = randomUUID();
+  const token = randomAlphaNumeric(6);
+
+  const [{ insertId }] = await db.insert(servers).values({
+    organizationId: input.orgId,
+    name: input.serverPublicId,
+    mode: "Live",
+    createdAt: sql`CURRENT_TIMESTAMP`,
+    updatedAt: sql`CURRENT_TIMESTAMP`,
+    permalink: input.serverPublicId,
+    token,
+    messageRetentionDays: 60,
+    ipPoolId: input.defaultIpPoolId,
+    uuid,
+    rawMessageRetentionDays: 30,
+    rawMessageRetentionSize: 2048,
+    privacyMode: 0,
+    allowSender: 0,
+    logSmtpData: 0,
+    spamThreshold: "5",
+    spamFailureThreshold: "20",
+  });
+
+  // Start Vodo Magic
+  await rawMySqlConnection.query(
+    `CREATE DATABASE \`postal-server-${insertId}\``
+  );
+  await rawMySqlConnection.query(`USE \`postal-server-${insertId}\``);
+
+  const createMailServerQuery = (
+    await readFile(
+      fileURLToPath(new URL("./sql/create-mail-server.sql", import.meta.url)),
+      "utf-8"
+    )
+  ).replaceAll("\t", " ");
+
+  await rawMySqlConnection.query(createMailServerQuery);
+  await rawMySqlConnection.query(`USE \`postal\``);
+  // End Vodo Magic
 }

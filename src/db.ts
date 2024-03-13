@@ -4,12 +4,13 @@ import * as schema from "./schema";
 import { config } from "dotenv";
 config();
 
-const connection = await mysql.createConnection({
+export const connection = await mysql.createConnection({
   host: process.env.DATABASE_HOST || "127.0.0.1",
   port: parseInt(process.env.DATABASE_PORT || "3306"),
   user: process.env.DATABASE_USER || "root",
   password: process.env.DATABASE_PASSWORD || "postal",
   database: "postal",
+  multipleStatements: true,
 });
 
 export const db = drizzle(connection, { schema, mode: "default" });

@@ -1,13 +1,10 @@
-import { addDomain, setMailServerConfig } from "./src/functions";
-import { setOrgIpPools } from "./src/functions";
+import { addMailServer } from "./src/functions";
 
-console.log(
-  await addDomain({
-    domain: "blankparticle.me",
-    orgId: 1,
-    orgPublicId: "test",
-  })
-);
+await addMailServer({
+  orgId: 1,
+  defaultIpPoolId: 1,
+  serverPublicId: "vodo-magic-server",
+});
 
 // Exit the process
 process.exit(0);
