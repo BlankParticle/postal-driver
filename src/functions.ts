@@ -68,7 +68,8 @@ export type VerifyDomainDNSRecordsOutput = {
 }[];
 
 export async function verifyDomainDNSRecords(
-  domainId: string
+  domainId: string,
+  forceReverify: boolean = false
 ): Promise<VerifyDomainDNSRecordsOutput> {
   const domainInfo = await db.query.domains.findFirst({
     where: eq(domains.uuid, domainId),
@@ -83,7 +84,7 @@ export async function verifyDomainDNSRecords(
     return [{ error: txtRecords.error, fix: "Contact support" }];
   }
 
-  if (!domainInfo.verifiedAt) {
+  if (!domainInfo.verifiedAt || forceReverify) {
     const record = `uninbox-verification ${domainInfo.verificationToken}`;
     const verified = txtRecords.data.includes(record);
     if (verified) {
@@ -105,7 +106,7 @@ export async function verifyDomainDNSRecords(
 
   const errors: VerifyDomainDNSRecordsOutput = [];
 
-  if (domainInfo.spfStatus !== "OK") {
+  if (domainInfo.spfStatus !== "OK" || forceReverify) {
     const spfDomains = parseSpfIncludes(
       txtRecords.data.find((_) => _.startsWith("v=spf1")) || ""
     );
@@ -142,7 +143,7 @@ export async function verifyDomainDNSRecords(
     }
   }
 
-  if (domainInfo.dkimStatus !== "OK") {
+  if (domainInfo.dkimStatus !== "OK" || forceReverify) {
     const domainKeyRecords = await lookupTXT(
       `postal-${domainInfo.dkimIdentifierString}._domainkey.${domainInfo.name}`
     );
@@ -196,7 +197,7 @@ export async function verifyDomainDNSRecords(
     }
   }
 
-  if (domainInfo.returnPathStatus !== "OK") {
+  if (domainInfo.returnPathStatus !== "OK" || forceReverify) {
     const returnPathCname = await lookupCNAME(`psrp.${domainInfo.name}`);
     if (!returnPathCname.success) {
       errors.push({
@@ -232,7 +233,7 @@ export async function verifyDomainDNSRecords(
     }
   }
 
-  if (domainInfo.mxStatus !== "OK") {
+  if (domainInfo.mxStatus !== "OK" || forceReverify) {
     const mxRecords = await lookupMX(domainInfo.name);
     if (!mxRecords.success) {
       errors.push({
