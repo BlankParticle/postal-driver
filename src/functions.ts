@@ -1,5 +1,14 @@
 import { db } from "./db";
-import { organizations, domains } from "./schema";
+import {
+  organizations,
+  domains,
+  credentials,
+  organizationIpPools,
+  servers,
+  webhooks,
+  httpEndpoints,
+  routes,
+} from "./schema";
 import { randomUUID } from "node:crypto";
 import {
   generateDKIMKeyPair,
@@ -7,7 +16,7 @@ import {
   getUniqueDKIMSelector,
   randomAlphaNumeric,
 } from "./utils";
-import { eq, sql } from "drizzle-orm/sql";
+import { and, eq, sql } from "drizzle-orm/sql";
 import { lookupCNAME, lookupMX, lookupTXT } from "./dns";
 import {
   buildDkimRecord,
@@ -268,4 +277,171 @@ export async function verifyDomainDNSRecords(
   }
 
   return errors;
+}
+
+export type SetMailServerKeyInput = {
+  type: "SMTP" | "API";
+  publicOrgId: string;
+  serverId: number;
+  serverPublicId: string;
+};
+
+export async function setMailServerKey(input: SetMailServerKeyInput) {
+  const key = randomAlphaNumeric(24);
+  const uuid = randomUUID();
+
+  await db.update(credentials).set({
+    serverId: input.serverId,
+    type: input.type,
+    createdAt: sql`CURRENT_TIMESTAMP`,
+    updatedAt: sql`CURRENT_TIMESTAMP`,
+    key: key,
+    uuid,
+    hold: 0,
+    name: input.serverPublicId + input.type === "SMTP" ? "-api" : "-smtp",
+  });
+
+  return {
+    key,
+  };
+}
+
+export type SetOrgIpPoolsInput = {
+  orgId: number;
+  poolIds: number[];
+};
+
+export async function setOrgIpPools(input: SetOrgIpPoolsInput) {
+  const existingPools = await db.query.organizationIpPools.findMany({
+    where: eq(organizationIpPools.organizationId, input.orgId),
+  });
+
+  const poolsToAdd = input.poolIds.filter(
+    (pool) => !existingPools.some((_) => _.ipPoolId === pool)
+  );
+
+  const poolsToRemove = existingPools
+    .filter((pool) => !input.poolIds.some((_) => _ === pool.ipPoolId))
+    .map((_) => _.ipPoolId!);
+
+  for await (let pool of poolsToAdd) {
+    await db.insert(organizationIpPools).values({
+      organizationId: input.orgId,
+      ipPoolId: pool,
+      createdAt: sql`CURRENT_TIMESTAMP`,
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    });
+  }
+
+  for await (let pool of poolsToRemove) {
+    await db
+      .delete(organizationIpPools)
+      .where(
+        and(
+          eq(organizationIpPools.organizationId, input.orgId),
+          eq(organizationIpPools.ipPoolId, pool)
+        )
+      );
+  }
+}
+
+export type SetMailServerConfigInput = {
+  serverId: number;
+  sendLimit?: number;
+  outboundSpamThreshold?: number;
+  messageRetentionDays?: number;
+  rawMessageRetentionDays?: number;
+  rawMessageRetentionSize?: number;
+};
+
+export async function setMailServerConfig(input: SetMailServerConfigInput) {
+  await db
+    .update(servers)
+    .set({
+      sendLimit: input.sendLimit,
+      outboundSpamThreshold: input.outboundSpamThreshold?.toString(),
+      messageRetentionDays: input.messageRetentionDays,
+      rawMessageRetentionDays: input.rawMessageRetentionDays,
+      rawMessageRetentionSize: input.rawMessageRetentionSize,
+    })
+    .where(eq(servers.id, input.serverId));
+}
+
+export type SetMailServerEventWebhookInput = {
+  orgId: number;
+  serverId: number;
+  serverPublicId: string;
+  mailBridgeUrl: string;
+};
+
+export async function setMailServerEventWebhook(
+  input: SetMailServerEventWebhookInput
+) {
+  const webhookUrl = `${input.mailBridgeUrl}/postal/events/${input.orgId}/${input.serverPublicId}`;
+  await db.update(webhooks).set({
+    url: webhookUrl,
+    name: input.serverPublicId,
+    serverId: input.serverId,
+    uuid: randomUUID(),
+    allEvents: 1,
+    enabled: 1,
+    createdAt: sql`CURRENT_TIMESTAMP`,
+    updatedAt: sql`CURRENT_TIMESTAMP`,
+  });
+  return { webhookUrl };
+}
+
+export type SetMailServerRoutingHttpEndpointInput = {
+  orgId: number;
+  serverPublicId: string;
+  serverId: number;
+  endpoint: string;
+  mailBridgeUrl: string;
+};
+
+export async function setMailServerRoutingHttpEndpoint(
+  input: SetMailServerRoutingHttpEndpointInput
+) {
+  const endpointUrl = `${input.mailBridgeUrl}/postal/mail/inbound/${input.orgId}/${input.serverPublicId}`;
+  const uuid = randomUUID();
+  await db.insert(httpEndpoints).values({
+    name: "uninbox-mail-bridge-http",
+    url: endpointUrl,
+    encoding: "BodyAsJson",
+    format: "Hash",
+    stripReplies: 1,
+    createdAt: sql`CURRENT_TIMESTAMP`,
+    updatedAt: sql`CURRENT_TIMESTAMP`,
+    includeAttachments: 1,
+    timeout: 30,
+    uuid,
+  });
+  return { endpointUrl };
+}
+
+export type SetMailServerRouteForDomainInput = {
+  orgId: number;
+  domainId: number;
+  serverId: number;
+  endpointId: number;
+  username: string;
+};
+export async function setMailServerRouteForDomain(
+  input: SetMailServerRouteForDomainInput
+) {
+  const uuid = randomUUID();
+  const token = randomAlphaNumeric(8);
+  await db.insert(routes).values({
+    domainId: input.domainId,
+    serverId: input.serverId,
+    name: input.username || "*",
+    endpointId: input.endpointId,
+    endpointType: "HTTPEndpoint",
+    spamMode: "Mark",
+    createdAt: sql`CURRENT_TIMESTAMP`,
+    updatedAt: sql`CURRENT_TIMESTAMP`,
+    token,
+    mode: "Endpoint",
+    uuid,
+  });
 }

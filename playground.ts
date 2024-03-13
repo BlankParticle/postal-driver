@@ -1,17 +1,12 @@
-import { addDomain } from "./src/functions";
-
-import { verifyDomainDNSRecords } from "./src/functions";
-
-// console.log(
-//   await addDomain({
-//     domain: "blankparticle.me",
-//     orgId: 1,
-//     orgPublicId: "test",
-//   })
-// );
+import { addDomain, setMailServerConfig } from "./src/functions";
+import { setOrgIpPools } from "./src/functions";
 
 console.log(
-  await verifyDomainDNSRecords("52fe0ee8-c432-4f68-8acd-456ae557dff0")
+  await addDomain({
+    domain: "blankparticle.me",
+    orgId: 1,
+    orgPublicId: "test",
+  })
 );
 
 // Exit the process
